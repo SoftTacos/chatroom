@@ -4,26 +4,80 @@ const io = require('socket.io')(http);
 const fs   = require('fs');
 //const EventEmitter = reqiure('events');
 const util = require('util');
+const mysql = require('mysql');
 
 var port = 3000;//process.env.PORT || 3000
 
-app.get('/', (req, res) => {
+messages = [];//contains all messages, saved and unsaved
+firstUnsavedMessage = 0;
+
+http.listen(port, () => {
+  console.log('listening on: ' + port);
+});
+
+var databaseConnection = mysql.createConnection({
+  host: "localhost",
+  user: "user",
+  password: "password",
+  database: "chatroom"
+});
+
+loadMessages();
+
+
+
+
+app.get('/', (request, response) => {
   console.log('USER CONNECTED');
-  res.sendFile(__dirname + '/index.html');
+  response.sendFile(__dirname + '/index.html');
+  //console.log("CLIENTS " + io.clients);
 });
 
 io.on('connection', (socket) => {
-  socket.on('chat message', (msg) => {
-    io.emit('chat message', msg);
-    console.log('got em: ', msg);
+  socket.on('chat message', (message) => {
+    //var clientName = calcClientName(socket);
+    if(!message.username)
+      message.username = "anonymous";
+    messages.push([message.username, message.message]);
+    io.emit('chat message', message);
+    console.log('Message sent: ', JSON.stringify(message));
+    saveMessages();
+  });
+  
+  socket.on('sendOldMessages', () => {
+    io.to(socket.id).emit('sendOldMessages', messages);    
   });
 });
 
-http.listen(port, () => {
-  console.log('listening on *:' + port);
-});
+function loadMessages(){
+    var query = "SELECT * FROM messages";
+    databaseConnection.query(query, (err, result, fields) => {//result is an array of hashes[row#]["column name"], fields returns column data
+      if (err) throw err;
+      for(i = 0; i < result.length; i++){
+        messages.push([result[i].username, result[i].message]);
 
-/*
+      }
+      firstUnsavedMessage = messages.length;
+      console.log("Successfully pulled messages");
+    });
+}
+
+function saveMessages(){
+  if(firstUnsavedMessage == messages.length){
+    console.log("No new messages to save to database");
+    return;
+  }
+  var query = "INSERT INTO messages (username, message) VALUES ?";
+  var values = messages.slice(firstUnsavedMessage);
+
+  databaseConnection.query(query, [values], (err, result) => {
+    if(err) throw err;
+    console.log("Successfully pushed messages");
+    firstUnsavedMessage = messages.length;
+  });
+}
+
+/* BELOW THIS LINE IS DOODLES FOR LEARNING, please ignore
 app.get('/', function(request, response){
   //res.sendFile(__dirname + '/client');
   fs.readFile('client.html', 'utf8', (err, data) => {

@@ -17,20 +17,36 @@
   <body>
     <ul id="messages"></ul>
     <form action="">
-      <input id="m" autocomplete="off" /><button>Send</button>
+      <input id="n" autocomplete="off" />
+      <input id="t" autocomplete="off" />
+      <button>Send</button>
     </form>
     <script src="/socket.io/socket.io.js"></script><!--<script src="https://cdn.socket.io/socket.io-1.2.0.js"></script> -->
     <script src="https://code.jquery.com/jquery-1.11.1.js"></script>
     <script>//
+      delimeter = " | "
       $(function () {
         var socket = io();
+
+        socket.emit('sendOldMessages');
+
         $('form').submit(function(){
-          socket.emit('chat message', $('#m').val());
-          $('#m').val('');
+          if( !$('#t').val() )
+            return false;
+          var message = {"username": $('#n').val(), "message": $('#t').val()};
+          socket.emit('chat message', message);
+          $('#t').val('');
           return false;
         });
+
         socket.on('chat message', function(msg){
-          $('#messages').append($('<li>').text(msg));
+          $('#messages').append($('<li>').text(msg.username + delimeter + msg.message));
+          window.scrollTo(0, document.body.scrollHeight);
+        });
+
+        socket.on('sendOldMessages', function(newMessages){
+          for(i=0;i < newMessages.length;i++)
+            $('#messages').append($('<li>').text(newMessages[i][0] + delimeter + newMessages[i][1]));
           window.scrollTo(0, document.body.scrollHeight);
         });
       });
